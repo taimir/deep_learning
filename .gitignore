@@ -1,0 +1,4 @@
+**/mnist*
+.idea
+**/.ipynb_checkpoints
+**/best_model.pkl
