@@ -3,14 +3,18 @@ I will use stochastic gradient descent with mini batches. The reason to not use 
 proposed in Bishop's book is that the length of the features per image is rather big -> computing the
 hessian matrix might actually be more inefficient than doing randomized gradient descent.
 """
-
 import theano
-from theano import tensor as T
-from theano import shared
 import numpy as np
-from numpy import random
 import pickle
 import gzip
+
+import climin
+import itertools
+
+from theano import tensor as T
+from theano import shared
+from numpy import random
+
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 
@@ -23,6 +27,8 @@ class LRegression:
 
     def __init__(self, feature_dim, output_dim):
         print("Initializing logistic regression model")
+        self.output_dim = output_dim
+        self.feature_dim = feature_dim
         # Data placeholders
         X = T.fmatrix('X')
         y = T.lvector('y')
@@ -49,8 +55,11 @@ class LRegression:
         loss = -T.log(filtered).mean()
 
         # compute the gradients
-        grad_W = T.grad(loss, self.W)
-        grad_b = T.grad(loss, self.b)
+        self.grad_W = T.grad(loss, self.W)
+        self.grad_b = T.grad(loss, self.b)
+        # used by climin
+        self._flat_grad = theano.function(inputs=[X, y],
+                                          outputs=[self.grad_W, self.grad_b])
 
         predictions = T.argmax(probs, axis=1)  # map the softmax probabilities to a digit (0 to 9)
         missclass_rate = T.neq(predictions, y).mean()
@@ -70,12 +79,12 @@ class LRegression:
                                       outputs=missclass_rate,
                                       updates=[(self.W,
                                                 # momentum
-                                                self.W - (new_rate * grad_W + (1 - new_rate) * update_W)),
+                                                self.W - (new_rate * self.grad_W + (1 - new_rate) * update_W)),
                                                (self.b,
                                                 # momentum
-                                                self.b - (new_rate * grad_b + (1 - new_rate) * update_b)),
-                                               (update_W, new_rate * grad_W + (1 - new_rate) * update_W),
-                                               (update_b, new_rate * grad_b + (1 - new_rate) * update_b)])
+                                                self.b - (new_rate * self.grad_b + (1 - new_rate) * update_b)),
+                                               (update_W, new_rate * self.grad_W + (1 - new_rate) * update_W),
+                                               (update_b, new_rate * self.grad_b + (1 - new_rate) * update_b)])
 
         # define the error rate function
         self._error_rate = theano.function(inputs=[X, y], outputs=missclass_rate)
@@ -144,11 +153,11 @@ class LRegression:
                 print("Epoch {} passed. Validating model:").format(epoch_counter)
                 new_err = self.error_rate(valid_x, valid_y)
                 if new_err < best_err:
-                        no_better_since = 0
-                        best_err = new_err
-                        # save the best model
-                        final_W = self.W.get_value()
-                        final_b = self.b.get_value()
+                    no_better_since = 0
+                    best_err = new_err
+                    # save the best model
+                    final_W = self.W.get_value()
+                    final_b = self.b.get_value()
                 else:
                     no_better_since += 1
                 print("Error rate: {}").format(new_err)
@@ -176,6 +185,40 @@ class LRegression:
 
         print("Final error rate: {}").format(self.error_rate(valid_x, valid_y))
 
+    def train_climin(self, train_x, train_y, valid_x, valid_y, test_x, test_y):
+        """
+        Trains the logistic regression model using the climin optimizer
+        """
+        print("Training model with climin gradient descent optimization")
+
+        def unpack_params(parameters, model):
+            W = parameters[:model.feature_dim * model.output_dim].reshape(model.feature_dim, model.output_dim)
+            b = parameters[model.feature_dim * model.output_dim:]
+            model.W.set_value(W)
+            model.b.set_value(b)
+
+        def grad_func(parameters, X, y, model):
+            unpack_params(parameters, model)
+            grad_w, grad_b = model._flat_grad(X, y)
+            return np.concatenate((grad_w.flatten(), grad_b))
+
+        # initialize a flat parameters placeholder for climin
+        # randomize the parameters, but keep variance small enough (0.01) to promote faster learning
+        params = np.zeros(self.feature_dim * self.output_dim + self.output_dim) # 0.01 * random.randn(self.feature_dim * self.output_dim + self.output_dim)
+
+        # pass self during the training to update the parameters of the linear regression model object itself
+        # and reuse the theano definitions from the constructor
+        opt = climin.GradientDescent(params, grad_func, step_rate=0.1, momentum=0.9,
+                                     args=itertools.repeat(([train_x, train_y, self], {})))
+
+        print("Initial error rate: {}").format(self.error_rate(valid_x, valid_y))
+        for iter_info in opt:
+            print("Epoch {}").format(iter_info['n_iter'])
+            print("Error rate {}").format(self.error_rate(valid_x, valid_y))
+            if iter_info['n_iter'] >= 300:
+                break
+        print("Final error rate: {}").format(self.error_rate(valid_x, valid_y))
+
 
 """
 Load data
@@ -195,7 +238,7 @@ lregression = LRegression(train_x.shape[1], 10)
 """
 Train
 """
-lregression.train(train_x, train_y, valid_x, valid_y, test_x, test_y)
+lregression.train_climin(train_x, train_y, valid_x, valid_y, test_x, test_y)
 
 """
 Perform on test data
