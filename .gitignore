@@ -2,3 +2,4 @@
 .idea
 **/.ipynb_checkpoints
 **/best_model.pkl
+**/cifar-10*
