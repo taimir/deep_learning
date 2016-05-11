@@ -19,7 +19,9 @@ from numpy import random
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 
-
+"""
+TODO: try to do this with rotated / shifted images maybe?
+"""
 class LRegression:
     def __init__(self, feature_dim, output_dim, batch_size=600, max_epochs=150, learning_rate=0.1):
         """

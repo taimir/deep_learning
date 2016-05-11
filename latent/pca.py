@@ -18,6 +18,9 @@ from itertools import product
 import matplotlib.pyplot as plot
 
 
+"""
+TODO: do this blockwise
+"""
 
 class PCA:
     def __init__(self, dim_size, n_latent=None, variance_preserve=0.9):
