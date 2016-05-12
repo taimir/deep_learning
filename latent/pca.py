@@ -105,12 +105,13 @@ def unpickle(file):
     fo.close()
     return dict
 
-cifar_x = []
-cifar_y = []
+
 
 def prep_image(arr):
     return imresize(toimage(arr.reshape(3, 32, 32)).convert('L'), size=0.375).flatten()
 
+cifar_x = []
+cifar_y = []
 
 for i in range(5):
     print("Loading cifar batch %i" % (i+1))
