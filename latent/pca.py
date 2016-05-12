@@ -16,11 +16,13 @@ from scipy import linalg
 from itertools import product
 
 import matplotlib.pyplot as plot
-
+from scipy.misc import toimage
+from scipy.misc import imresize
 
 """
 TODO: do this blockwise
 """
+
 
 class PCA:
     def __init__(self, dim_size, n_latent=None, variance_preserve=0.9):
@@ -41,15 +43,19 @@ class PCA:
         self._transform = theano.function(inputs=[self._X], outputs=T.dot(self._X, self.V))
 
     def apply(self, X):
+        print("Transforming dataset of size %i" % X.shape[0])
         mean = X.mean(axis=0)
-        X = X - mean
-        self.train(X)
-        transformed = self._transform(X)
+        X_centered = X - mean
+        transformed = self._transform(X_centered)
         return transformed
 
     def train(self, X):
+        print("Training PCA model ...")
+        mean = X.mean(axis=0)
+        X_centered = X - mean
+
         # compute covariance matrix, do PCA
-        eigenvals, V = self._compute_eigen(X)
+        eigenvals, V = self._compute_eigen(X_centered)
 
         # select remaining components
         cutoff = 0
@@ -99,13 +105,33 @@ def unpickle(file):
     fo.close()
     return dict
 
-cifar_batch_1 = unpickle('cifar-10-batches-py/data_batch_1')
-cifar_x = cifar_batch_1['data']
-cifar_y = np.asarray(cifar_batch_1['labels'])
+cifar_x = []
+cifar_y = []
+
+def prep_image(arr):
+    return imresize(toimage(arr.reshape(3, 32, 32)).convert('L'), size=0.375).flatten()
+
+
+for i in range(5):
+    print("Loading cifar batch %i" % (i+1))
+    cifar_batch = unpickle('cifar-10-batches-py/data_batch_%i' % (i+1))
+
+    # convert to grayscale
+    x = cifar_batch['data']
+    x = np.asarray(map(lambda im: prep_image(im), x))
+    y = np.asarray(cifar_batch['labels'])
+    cifar_x.append(x)
+    cifar_y.append(y)
+
+cifar_x = np.concatenate(cifar_x)
+cifar_y = np.concatenate(cifar_y)
+print("{} {}").format(cifar_x.shape, cifar_y.shape)
 
 """
 Compute PCA
 """
+
+
 def scatter_plot(train_x, train_y, filename):
     pca = PCA(train_x.shape[1], n_latent=2)
 
@@ -117,22 +143,27 @@ def scatter_plot(train_x, train_y, filename):
             continue
         X_ = train_x[(train_y == i) + (train_y == j)]
         y_ = train_y[(train_y == i) + (train_y == j)]
-        if (len(X_) > 0):
-            X_transformed = pca.apply(X_)
-            plots[i, j].scatter(X_transformed[:, 0], X_transformed[:, 1], c=y_)
-            plots[i, j].set_xticks(())
-            plots[i, j].set_yticks(())
 
-            plots[j, i].scatter(X_transformed[:, 0], X_transformed[:, 1], c=y_)
-            plots[j, i].set_xticks(())
-            plots[j, i].set_yticks(())
-            if i == 0:
-                plots[i, j].set_title(j)
-                plots[j, i].set_ylabel(j)
 
-        #plt.scatter(X_transformed[:, 0], X_transformed[:, 1], c=y_)
+        # train on each pair of vars separately
+        pca.train(X_)
+        X_transformed = pca.apply(X_)
+
+        plots[i, j].scatter(X_transformed[:, 0], X_transformed[:, 1], c=y_)
+        plots[i, j].set_xticks(())
+        plots[i, j].set_yticks(())
+
+        plots[j, i].scatter(X_transformed[:, 0], X_transformed[:, 1], c=y_)
+        plots[j, i].set_xticks(())
+        plots[j, i].set_yticks(())
+        if i == 0:
+            plots[i, j].set_title(j)
+            plots[j, i].set_ylabel(j)
+
+            # plt.scatter(X_transformed[:, 0], X_transformed[:, 1], c=y_)
     plot.tight_layout()
     plot.savefig(filename)
 
-scatter_plot(cifar_x[:4000], cifar_y[:4000], 'scatterplotCIFAR.png')
-scatter_plot(train_x[:5000], train_y[:5000], 'scatterplotMNIST.png')
+
+scatter_plot(cifar_x, cifar_y, 'scatterplotCIFAR.png')
+scatter_plot(np.concatenate([train_x, valid_x, test_x]), np.concatenate([train_y, valid_y, test_y]), 'scatterplotMNIST.png')

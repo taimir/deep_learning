@@ -46,8 +46,6 @@ class NeuralLayer:
 
 
 class NeuralNetClassifier:
-    MAX_EPOCHS = 100.0
-
     def __init__(self, network_spec, batch_size=600, max_epochs=150, learning_rate=0.1):
         """
         :param network_spec: A dictionary, which specifies only the hidden layers.
@@ -412,14 +410,14 @@ nnet = NeuralNetClassifier({
     "out_dim": 10,
     "in_dim": train_x.shape[1],
     "layer_specs": [
-        {"in_dim": train_x.shape[1], "out_dim": 300, "activation": T.nnet.sigmoid}
+        {"in_dim": train_x.shape[1], "out_dim": 50, "activation": T.nnet.relu}
     ]
 })
 
 """
 Train
 """
-nnet.train(train_x, train_y, valid_x, valid_y, test_x, test_y, optimizer='rmsprop')
+nnet.train(train_x, train_y, valid_x, valid_y, test_x, test_y, optimizer='sgd')
 
 """
 Perform on test data
@@ -430,6 +428,6 @@ print("Achieved error rate on test set: {}").format(test_error)
 """
 Receptive fields
 """
-for i in range(10):
+for i in range(50):
     plt.imshow(nnet.layers[0].W.eval()[:, i].reshape((28, 28)), cmap=cm.Greys_r)
     plt.show()
