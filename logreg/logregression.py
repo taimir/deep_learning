@@ -264,7 +264,7 @@ class LRegression:
 
         return train
 
-    def train(self, train_x, train_y, valid_x, valid_y, test_x, test_y, learning_rate=0.9,
+    def train(self, train_x, train_y, valid_x, valid_y, test_x, test_y,
               stop_threshold=10, optimizer=None):
         """
         Trains the logistic regression model with stochastic gradient descent.
@@ -274,7 +274,6 @@ class LRegression:
         :param valid_y: the validation labels
         :param test_x:
         :param test_y:
-        :param batch_size: size of the stochastic descent mini batches
         :param stop_threshold: how many epochs to wait for after the error stagnates
         :param optimizer: specifies which gradient optimizer to use
         """
