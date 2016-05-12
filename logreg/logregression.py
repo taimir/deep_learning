@@ -7,6 +7,7 @@ import theano
 import numpy as np
 import pickle
 import gzip
+import timeit
 
 import climin
 from climin import util as cli_util
@@ -43,8 +44,8 @@ class LRegression:
         # Parameter placeholders
         # sample W with smaller variance: 0.01 instead of 1
         # 0.1 * random.randn(feature_dim, output_dim)
-        self.W = shared(np.zeros([feature_dim, output_dim]), name='W', borrow=True)
-        self.b = shared(np.zeros(output_dim), name="b", borrow=True)
+        self.W = shared(np.zeros([feature_dim, output_dim], dtype=theano.config.floatX), name='W', borrow=True)
+        self.b = shared(np.zeros(output_dim, dtype=theano.config.floatX), name="b", borrow=True)
         self.max_epochs = shared(max_epochs, name="max_epochs", borrow=True)
         self.learning_rate = shared(learning_rate, name="learning_rate", borrow=True)
 
@@ -52,8 +53,8 @@ class LRegression:
         Internal representation of the model. Theano variables.
         """
         # input Data placeholders
-        self._X = T.fmatrix('X')
-        self._y = T.lvector('y')
+        self._X = T.matrix('X')
+        self._y = T.ivector('y')
         self._minibatch_index = shared(0)
         self._current_epoch = shared(0)
         self._inc_epoch = theano.function(inputs=[], updates=[(self._current_epoch, self._current_epoch + 1)])
@@ -70,14 +71,12 @@ class LRegression:
             T.arange(
                 self._y.shape[0]), self._y]  # broadcasted indexes, the result is a vector of prob. for each instance
         # now we take the logs and sum them up (with a minus)
-        self._loss = -T.log(filtered).mean()
-
+        self._loss = T.mean(-T.log(filtered))
         # compute the gradients
         self._grad_W = T.grad(self._loss, self.W)
         self._grad_b = T.grad(self._loss, self.b)
-
         self._predictions = T.argmax(probs, axis=1)  # map the softmax probabilities to a digit (0 to 9)
-        self._missclass_rate = T.neq(self._predictions, self._y).mean()
+        self._missclass_rate = T.mean(T.neq(self._predictions, self._y))
 
         """
         Callable functions (APPLY nodes) to access some of the internal states
@@ -105,15 +104,16 @@ class LRegression:
 
     def use_default(self, X, y):
         # define a theano function for the learning rate
-        new_rate = self.learning_rate * ((self.max_epochs - self._current_epoch) / self.max_epochs)
+        new_rate = self.learning_rate * ((self.max_epochs - self._current_epoch) / T.cast(self.max_epochs, T.config.floatX))
 
         # define the update to be used in the momentum calculation
         update_W = shared(np.zeros(self.W.get_value().shape))
         update_b = shared(np.zeros(self.b.get_value().shape))
 
         # create share variables for the data to operate upon
-        shared_X = theano.shared(X, borrow=True)
-        shared_y = theano.shared(y, borrow=True)
+        shared_X = theano.shared(np.asarray(X, dtype=theano.config.floatX), borrow=True)
+        float_y = theano.shared(np.asarray(y, dtype=theano.config.floatX), borrow=True)
+        shared_y = T.cast(float_y, 'int32')
 
         # now define the train function
         # we minimize the LOSS, hence we follow the negative gradient
@@ -232,6 +232,10 @@ class LRegression:
 
     def _climin_setup(self, train_x, train_y):
         """
+        The functions sets up the climin minibatches protocol given the data to train on.
+
+        :param train_x: the data to train on
+        :param train_y: the labels for the data
         :return: params: a flat placeholder for the model parameters
                  args: a list of arguments passed to the climin optimizer at each training step
         """
@@ -243,7 +247,6 @@ class LRegression:
         # pass self during the training to update the parameters of the linear regression model object itself
         # and reuse the theano definitions from the constructor
         minibatches = cli_util.iter_minibatches([train_x, train_y], self.batch_size, [0, 0])
-        mini_batch_count = train_x.shape[0] // self.batch_size
 
         # as climin arguments, pass the mini_batch_x, mini_batch_y and the model itself
         args = (([minibatch[0], minibatch[1], self], {}) for minibatch in minibatches)
@@ -321,6 +324,7 @@ class LRegression:
                 if new_err < best_err:
                     no_better_since = 0
                     best_err = new_err
+                    print("New best error %f" % best_err)
                     # save the best model
                     final_W = self.W.get_value()
                     final_b = self.b.get_value()
@@ -363,10 +367,18 @@ with gzip.open('mnist.pkl.gz', 'rb') as f:
     valid_x, valid_y = valid_set
     test_x, test_y = test_set
 
+    # convert to types we can easily handle
+    train_x = np.asarray(train_x, dtype='float32')
+    valid_x = np.asarray(valid_x, dtype='float32')
+    test_x = np.asarray(test_x, dtype='float32')
+    train_y = np.asarray(train_y, dtype='int32')
+    valid_y = np.asarray(valid_y, dtype='int32')
+    test_y = np.asarray(test_y, dtype='int32')
+
 """
 Init
 """
-lregression = LRegression(train_x.shape[1], 10, learning_rate=0.9)
+lregression = LRegression(train_x.shape[1], 10, learning_rate=0.13)
 
 """
 Train

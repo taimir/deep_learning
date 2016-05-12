@@ -36,8 +36,8 @@ class NeuralLayer:
         self.activation = activation
 
         # define the weights for this layer
-        self.W = shared(0.1 * random.randn(in_dim, out_dim), name='W', borrow=True)
-        self.b = shared(np.zeros(out_dim), name="b", borrow=True)
+        self.W = shared(np.asarray(0.1 * random.randn(in_dim, out_dim), dtype=theano.config.floatX), name='W', borrow=True)
+        self.b = shared(np.zeros(out_dim, dtype=theano.config.floatX), name="b", borrow=True)
 
         net = T.dot(inputs, self.W) + self.b
         self.outputs = activation(net)
