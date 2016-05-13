@@ -1,27 +1,24 @@
+# t-SNE
+The code I used is in `bhtsne.py`. It has a dependency on the compiled C++ binary `bh_tsne.exe`.
 
-This software package contains a Barnes-Hut implementation of the t-SNE algorithm. The implementation is described in [this paper](http://lvdmaaten.github.io/publications/papers/JMLR_2014.pdf).
+## Problem 27 Understanding t-SNE
+t-SNE is a technique for visualization of higher dimensional data into lower subspaces. It is mightier than PCA, as it does not just stick to linear projections. With the Barnes-Hut algorithm, it is also really fast and memory efficient (`O(nlogn)` runtime). SNE stands for "Stochastic Neighbor Embedding". The rough idea is, that in the embedded space and in the original space two joint distributions of points are considered. The probability of two points is high if they are similar, low if they are dissimilar, and this must hold in both the embedded space and the original space. Thus, the goal is to pretty much minimize the KL divergence of the distributions (one embedded, one in the original space). t-SNE is just one of the existing variants (optimizations) of this idea.
 
+## Problem 28 Evaluating t-SNE
+### IMPORTANT: The python code of the bh-tsne is just a wrapper around a c++ binary. You will need to execute the command below first, before you can use the python scripts.
 
-# Installation #
-
-Compile the source using the following command:
-
+Compile the C++ source using the following command:
 ```
 g++ sptree.cpp tsne.cpp -o bh_tsne -O2
 ```
 
-That's all!
+Note: I had to adapt the original python script to make it run on Windows. If you have trouble running it on Linux, please download the original python script from the t-SNE website and put my changes in it.
 
-# Usage #
+I evaluated `bh-tsne` on a couple of different training sets, including `MNIST, CIFAR-10, diabetes, olivetti_faces, covtype`.
+http://scikit-learn.org/stable/datasets
+You can find the resulting images placed directly in this directory.
 
-The code comes with wrappers for Matlab and Python. These wrappers write your data to a file called `data.dat`, run the `bh_tsne` binary, and read the result file `result.dat` that the binary produces. There are also external wrappers available for [Torch](https://github.com/clementfarabet/manifold) and [R](https://github.com/jkrijthe/Rtsne). Writing your own wrapper should be straightforward; please refer to one of the existing wrappers for the format of the data and result files.
+The last three are from the standard `sklearn` training sets, BTW. From those five, only MNIST, CIFAR-10 and covtype are rather big. This is why also their embeddings make much more sense on the first sight. When I ran t-SNE on the smaller datasets (diabetes, olivetti_faces) it performed O.K., but not great (maybe because of the lack of data points?).
 
-Demonstration of usage in Matlab:
-
-```matlab
-filename = websave('mnist_train.mat', 'https://github.com/awni/cs224n-pa4/blob/master/Simple_tSNE/mnist_train.mat?raw=true');
-load(filename);
-numDims = 2; pcaDims = 50; perplexity = 50; theta = .5;
-map = fast_tsne(digits', numDims, pcaDims, perplexity, theta);
-gscatter(map(:,1), map(:,2), labels');
-```
+## Problem 29 t-SNE for MNIST
+As asked I reproduced figure 5 from the paper on `bh-tsne`, it is called `figure5_reproduction.png`. The only difference is that I did not plot the images themselves, but I plotted the colors of each class (otherwise the image would be huge in size, and I would have trouble uploading it to github). But the main idea is still visible: bh-tsne manages to reflect the different classes perfectly in the 2D embedding. Clearly, running a classification algorithm on such a clear cut between the classes will work great. MNIST is easily separable through t-SNE.

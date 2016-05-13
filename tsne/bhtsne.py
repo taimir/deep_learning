@@ -44,10 +44,14 @@ from struct import calcsize, pack, unpack
 from subprocess import Popen
 from sys import stderr, stdin, stdout
 from tempfile import mkdtemp
+from scipy.misc import toimage
+
+import tarfile
 import gzip
 import pickle
 import matplotlib.pyplot as plot
 import numpy as np
+
 
 ### Constants
 BH_TSNE_BIN_PATH = path_join(dirname(__file__), 'bh_tsne.exe')
@@ -127,22 +131,103 @@ def bh_tsne(samples, no_dims=DEFAULT_NO_DIMS, perplexity=DEFAULT_PERPLEXITY, the
                     yield result
                     # The last piece of data is the cost for each sample, we ignore it
                     # _read_unpack('{}d'.format(sample_count), output_file)
-"""
-Load data
-"""
-print("Loading data ...")
-with gzip.open('mnist.pkl.gz', 'rb') as f:
-    train_set, valid_set, test_set = pickle.load(f)
-    train_x, train_y = train_set
-    valid_x, valid_y = valid_set
-    test_x, test_y = test_set
 
-plot_x = []
-plot_y = []
-for mapped_point in bh_tsne(np.concatenate([train_x, valid_x, test_x]), verbose=True):
-    plot_x.append(mapped_point[0])
-    plot_y.append(mapped_point[1])
-plot.scatter(plot_x, plot_y, 20, np.concatenate([train_y, valid_y, test_y]));
-plot.savefig('mnist_bh_tsne.png')
-plot.show();
+def get_mnist():
+    print("mnist.pkl.gz must be directly in this directory, besides pca.py")
+    dataset = 'mnist.pkl.gz'
+    import os
 
+    # Download the MNIST dataset if it is not present
+    if not os.path.isfile(dataset):
+        from six.moves import urllib
+        origin = (
+            'http://www.iro.umontreal.ca/~lisa/deep/data/mnist/mnist.pkl.gz'
+        )
+        print('Downloading MNIST from %s' % origin)
+        urllib.request.urlretrieve(origin, dataset)
+
+def get_cifar():
+    print("The extracted cifar content must be directly in subfolder cifar-10-batches-py in this directory, besides pca.py")
+    dataset = 'cifar-10-python.tar.gz'
+
+    import os
+    # Download the MNIST dataset if it is not present
+    if not os.path.isfile(dataset):
+        from six.moves import urllib
+        origin = (
+            'http://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz'
+        )
+        print('Downloading CIFAR-10 from %s' % origin)
+        urllib.request.urlretrieve(origin, dataset)
+    tar = tarfile.open('cifar-10-python.tar.gz', 'r:gz')
+    for item in tar:
+        tar.extract(item)
+    print("Done extracting CIFAR-10 content")
+
+def unpickle(file):
+    import cPickle
+    fo = open(file, 'rb')
+    dict = cPickle.load(fo)
+    fo.close()
+    return dict
+
+if __name__ == '__main__':
+    """
+    Load data
+    """
+    get_mnist()
+    get_cifar()
+    print("Loading data ...")
+    with gzip.open('mnist.pkl.gz', 'rb') as f:
+        mnist_train_set, mnist_valid_set, mnist_test_set = pickle.load(f)
+        mnist_train_x, mnist_train_y = mnist_train_set
+        mnist_valid_x, mnist_valid_y = mnist_valid_set
+        mnist_test_x, mnist_test_y = mnist_test_set
+
+    # As already suggested, I first convert the CIFAR images to grayscale
+    def prep_image(arr):
+        return np.asarray(toimage(arr.reshape(3, 32, 32)).convert('L')).flatten()
+
+    cifar_x = []
+    cifar_y = []
+
+    for i in range(5):
+        print("Loading cifar batch %i" % (i+1))
+        cifar_batch = unpickle('cifar-10-batches-py/data_batch_%i' % (i+1))
+
+        # convert to grayscale
+        x = cifar_batch['data']
+        x = np.asarray(map(lambda im: prep_image(im), x))
+        y = np.asarray(cifar_batch['labels'])
+        cifar_x.append(x)
+        cifar_y.append(y)
+
+    cifar_x = np.concatenate(cifar_x)
+    cifar_y = np.concatenate(cifar_y)
+
+    """
+    I took some of the sklearn example datasets when evaluating tsne
+    """
+    # from sklearn import datasets
+    # diabetes = datasets.load_diabetes()
+    # X, y = diabetes.data, diabetes.target
+    # faces = datasets.fetch_olivetti_faces()
+    # X, y = faces.data, faces.target
+    # covtype = datasets.fetch_covtype()
+    # X, y = covtype.data, covtype.target
+
+    def create_embedding(data_x, data_y, file):
+        print("Creating an embedding with t-SNE. Sit back, this might take a while ...")
+        plot_x = []
+        plot_y = []
+        for mapped_point in bh_tsne(data_x, verbose=True):
+            plot_x.append(mapped_point[0])
+            plot_y.append(mapped_point[1])
+        plot.scatter(plot_x, plot_y, 20, data_y);
+        plot.savefig(file)
+        plot.show();
+
+
+    # create_embedding(cifar_x, cifar_y, 'cifar_embedding.png')
+    create_embedding(mnist_train_x, mnist_train_y, 'figure5_reproduction.png')
+    # create_embedding(X[:10000], y[:10000], 'covtype_embedding.png')
