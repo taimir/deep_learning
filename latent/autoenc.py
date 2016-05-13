@@ -88,7 +88,7 @@ class NeuralNetClassifier:
 
         # construct all the layers
         # Hidden layer
-        self.layers.append(NeuralLayer(self._net_input, dim, n_hidden, T.nnet.sigmoid))
+        self.layers.append(NeuralLayer(self._net_input, dim, n_hidden, T.nnet.relu))
 
         # Create a sigmoid non-linear output layer
         self.output_layer = NeuralLayer(self.layers[-1].outputs, self.layers[-1].out_dim, dim, T.nnet.sigmoid)
@@ -571,7 +571,7 @@ if __name__ == '__main__':
     """
     Init
     """
-    nnet = NeuralNetClassifier(dim=train_x.shape[1], n_hidden=300, max_epochs=15, sparcity_coef=0.05)
+    nnet = NeuralNetClassifier(dim=train_x.shape[1], n_hidden=300, max_epochs=10, sparcity_coef=0.2)
 
     """
     Train
@@ -593,7 +593,7 @@ if __name__ == '__main__':
         X=nnet.layers[0].W.get_value(borrow=True).T,
         img_shape=(28, 28), tile_shape=(10, 10),
         tile_spacing=(1, 1)))
-    image.save('dedicated_rmsprop_corruption0_300_medhigh_sparcity.png')
+    image.save('relu_autoencoderfilter_higher_sparsity.png')
 
     """
     First 100 images
@@ -610,4 +610,4 @@ if __name__ == '__main__':
         X=nnet.reconstruct(test_x[:100, :]),
         img_shape=(28, 28), tile_shape=(10, 10),
         tile_spacing=(1, 1)))
-    image.save('reconstructions_300_medhigh_sparcity.png')
+    image.save('relu_autoencoderrec_higher_sparsity.png')
